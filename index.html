@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dual N-Back - Brain Training</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Start Screen -->
+    <div id="startScreen" class="screen active">
+        <div class="container">
+            <h1>Dual N-Back</h1>
+            <p class="subtitle">Train your working memory</p>
+
+            <div class="button-group">
+                <button id="startButton" class="btn btn-primary">Start Training</button>
+                <button id="statsButton" class="btn btn-secondary">View Statistics</button>
+                <button id="settingsButton" class="btn btn-secondary">Settings</button>
+                <button id="instructionsButton" class="btn btn-secondary">How to Play</button>
+            </div>
+
+            <div class="quick-stats">
+                <div class="stat-item">
+                    <span class="stat-label">Current Level</span>
+                    <span class="stat-value" id="currentLevelDisplay">2</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Sessions Completed</span>
+                    <span class="stat-value" id="sessionsCompleted">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Best Level</span>
+                    <span class="stat-value" id="bestLevel">2</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="gameScreen" class="screen">
+        <div class="container">
+            <div class="game-header">
+                <div class="game-info">
+                    <span class="info-label">N-Level:</span>
+                    <span class="info-value" id="nLevel">2</span>
+                </div>
+                <div class="game-info">
+                    <span class="info-label">Trial:</span>
+                    <span class="info-value"><span id="currentTrial">0</span>/<span id="totalTrials">20</span></span>
+                </div>
+                <div class="game-info">
+                    <span class="info-label">Score:</span>
+                    <span class="info-value" id="currentScore">0%</span>
+                </div>
+            </div>
+
+            <div id="grid" class="grid grid-3x3">
+                <div class="grid-cell" data-position="0"></div>
+                <div class="grid-cell" data-position="1"></div>
+                <div class="grid-cell" data-position="2"></div>
+                <div class="grid-cell" data-position="3"></div>
+                <div class="grid-cell" data-position="4"></div>
+                <div class="grid-cell" data-position="5"></div>
+                <div class="grid-cell" data-position="6"></div>
+                <div class="grid-cell" data-position="7"></div>
+                <div class="grid-cell" data-position="8"></div>
+            </div>
+
+            <div class="controls">
+                <div class="control-hint">
+                    <kbd>A</kbd>
+                    <span>Audio Match</span>
+                </div>
+                <div class="control-hint">
+                    <kbd>L</kbd>
+                    <span>Position Match</span>
+                </div>
+            </div>
+
+            <div class="mobile-controls">
+                <button id="audioMatchBtn" class="mobile-btn">
+                    <span>🔊</span>
+                    <span>Audio Match</span>
+                </button>
+                <button id="positionMatchBtn" class="mobile-btn">
+                    <span>📍</span>
+                    <span>Position Match</span>
+                </button>
+            </div>
+
+            <div id="inputFeedback" class="input-feedback"></div>
+
+            <div class="game-controls">
+                <button id="pauseButton" class="btn btn-secondary btn-small">Pause</button>
+                <button id="restartButton" class="btn btn-danger btn-small">Restart</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Screen -->
+    <div id="resultsScreen" class="screen">
+        <div class="container">
+            <h2>Session Complete!</h2>
+
+            <div class="results-summary">
+                <div class="result-card">
+                    <div class="result-label">N-Level</div>
+                    <div class="result-value" id="resultNLevel">2</div>
+                </div>
+                <div class="result-card">
+                    <div class="result-label">Overall Score</div>
+                    <div class="result-value" id="resultOverallScore">0%</div>
+                </div>
+            </div>
+
+            <div class="results-details">
+                <h3>Performance Breakdown</h3>
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>Position</th>
+                            <th>Audio</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Accuracy</td>
+                            <td id="positionAccuracy">0%</td>
+                            <td id="audioAccuracy">0%</td>
+                        </tr>
+                        <tr>
+                            <td>Hits</td>
+                            <td id="positionHits">0</td>
+                            <td id="audioHits">0</td>
+                        </tr>
+                        <tr>
+                            <td>Misses</td>
+                            <td id="positionMisses">0</td>
+                            <td id="audioMisses">0</td>
+                        </tr>
+                        <tr>
+                            <td>False Positives</td>
+                            <td id="positionFalsePos">0</td>
+                            <td id="audioFalsePos">0</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="level-change" id="levelChangeMessage"></div>
+
+            <div class="level-override">
+                <label for="manualNLevel">Next Session N-Level:</label>
+                <div class="level-controls">
+                    <button id="decreaseLevel" class="level-btn">−</button>
+                    <span id="manualNLevel" class="level-display">2</span>
+                    <button id="increaseLevel" class="level-btn">+</button>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button id="continueButton" class="btn btn-primary">Continue Training</button>
+                <button id="backToMenuButton" class="btn btn-secondary">Back to Menu</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Screen -->
+    <div id="statsScreen" class="screen">
+        <div class="container">
+            <h2>Your Statistics</h2>
+
+            <div class="stats-overview">
+                <div class="stat-card">
+                    <div class="stat-card-label">Total Sessions</div>
+                    <div class="stat-card-value" id="totalSessions">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-label">Average Score</div>
+                    <div class="stat-card-value" id="averageScore">0%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-label">Highest N-Level</div>
+                    <div class="stat-card-value" id="highestLevel">2</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-label">Total Training Time</div>
+                    <div class="stat-card-value" id="totalTime">0m</div>
+                </div>
+            </div>
+
+            <div class="stats-history">
+                <h3>Recent Sessions</h3>
+                <div id="sessionHistory" class="session-history">
+                    <p class="no-data">No sessions yet. Start training to see your progress!</p>
+                </div>
+            </div>
+
+            <button id="closeStatsButton" class="btn btn-secondary">Back to Menu</button>
+        </div>
+    </div>
+
+    <!-- Settings Screen -->
+    <div id="settingsScreen" class="screen">
+        <div class="container">
+            <h2>Settings</h2>
+
+            <div class="settings-group">
+                <h3>Difficulty</h3>
+                <div class="setting-item">
+                    <label for="startingNLevel">Starting N-Level</label>
+                    <select id="startingNLevel">
+                        <option value="1">1-Back</option>
+                        <option value="2" selected>2-Back</option>
+                        <option value="3">3-Back</option>
+                        <option value="4">4-Back</option>
+                        <option value="5">5-Back</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label for="gridSize">Grid Size</label>
+                    <select id="gridSize">
+                        <option value="2">2×2</option>
+                        <option value="3" selected>3×3</option>
+                        <option value="4">4×4</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label for="trialsPerSession">Trials per Session</label>
+                    <select id="trialsPerSession">
+                        <option value="15">15</option>
+                        <option value="20" selected>20</option>
+                        <option value="25">25</option>
+                        <option value="30">30</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label for="stimulusInterval">Stimulus Interval</label>
+                    <select id="stimulusInterval">
+                        <option value="2000">2.0 seconds</option>
+                        <option value="2500">2.5 seconds</option>
+                        <option value="3000" selected>3.0 seconds</option>
+                        <option value="3500">3.5 seconds</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <h3>Audio</h3>
+                <div class="setting-item">
+                    <label for="audioVolume">Volume</label>
+                    <input type="range" id="audioVolume" min="0" max="100" value="80">
+                    <span id="volumeValue">80%</span>
+                </div>
+                <div class="setting-item">
+                    <label for="speechRate">Speech Rate</label>
+                    <select id="speechRate">
+                        <option value="0.8">Slow</option>
+                        <option value="1.0" selected>Normal</option>
+                        <option value="1.2">Fast</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <h3>Data</h3>
+                <div class="setting-item">
+                    <button id="resetStatsButton" class="btn btn-danger">Reset All Statistics</button>
+                    <p class="setting-description">This will permanently delete all your session data and statistics.</p>
+                </div>
+            </div>
+
+            <button id="closeSettingsButton" class="btn btn-secondary">Back to Menu</button>
+        </div>
+    </div>
+
+    <!-- Instructions Screen -->
+    <div id="instructionsScreen" class="screen">
+        <div class="container">
+            <h2>How to Play</h2>
+
+            <div class="instructions-content">
+                <section class="instruction-section">
+                    <h3>What is Dual N-Back?</h3>
+                    <p>Dual N-Back is a cognitive training exercise designed to improve your working memory and fluid intelligence. You'll track two sequences simultaneously: visual positions and audio letters.</p>
+                </section>
+
+                <section class="instruction-section">
+                    <h3>How It Works</h3>
+                    <ol>
+                        <li>A square will appear in different positions on the grid</li>
+                        <li>At the same time, you'll hear letters spoken (C, H, K, L, Q, R, S, T)</li>
+                        <li>Your job is to remember if the current stimulus matches what you saw/heard <strong>N steps back</strong></li>
+                        <li>For example, in 2-Back:
+                            <ul>
+                                <li>Press <kbd>L</kbd> if the current position matches the position from 2 steps ago</li>
+                                <li>Press <kbd>A</kbd> if the current letter matches the letter from 2 steps ago</li>
+                                <li>Press both if both match!</li>
+                            </ul>
+                        </li>
+                    </ol>
+                </section>
+
+                <section class="instruction-section">
+                    <h3>Controls</h3>
+                    <table class="controls-table">
+                        <tr>
+                            <td><kbd>A</kbd></td>
+                            <td>Audio match (current letter matches N steps back)</td>
+                        </tr>
+                        <tr>
+                            <td><kbd>L</kbd></td>
+                            <td>Position match (current position matches N steps back)</td>
+                        </tr>
+                    </table>
+                    <p>On mobile devices, use the on-screen buttons.</p>
+                </section>
+
+                <section class="instruction-section">
+                    <h3>Level Progression</h3>
+                    <p>Your N-level will automatically adjust based on your performance:</p>
+                    <ul>
+                        <li><strong>Score ≥ 90%:</strong> Level increases (harder)</li>
+                        <li><strong>Score < 50%:</strong> Level decreases (easier)</li>
+                        <li><strong>Score 50-89%:</strong> Level stays the same</li>
+                    </ul>
+                </section>
+
+                <section class="instruction-section">
+                    <h3>Tips</h3>
+                    <ul>
+                        <li>Start with 2-Back and let the game adjust to your level</li>
+                        <li>Stay focused - this exercise requires sustained attention</li>
+                        <li>Train regularly for best results (daily 20-minute sessions recommended)</li>
+                        <li>Don't get discouraged - it's challenging by design!</li>
+                    </ul>
+                </section>
+            </div>
+
+            <button id="closeInstructionsButton" class="btn btn-secondary">Back to Menu</button>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
