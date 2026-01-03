@@ -190,15 +190,17 @@ Built with vanilla JavaScript, HTML5, and CSS3:
 - Alternative audio letter sets
 - Advanced statistics and graphs
 
-## License
-
-This is a free, open-source implementation inspired by the Brain Workshop project. Feel free to use, modify, and distribute.
-
 ## Credits
 
 Inspired by [Brain Workshop](https://brainworkshop.sourceforge.net/) by Jonathan Toomim.
 
 The Dual N-Back task is based on research in cognitive psychology and working memory training.
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+This is an independent implementation created from scratch. Feel free to use, modify, and distribute.
 
 ## Support
 
