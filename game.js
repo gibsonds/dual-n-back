@@ -10,7 +10,8 @@ class DualNBackGame {
             trialsPerSession: 20,
             stimulusInterval: 3000,
             audioVolume: 0.8,
-            speechRate: 1.0
+            speechRate: 1.0,
+            audioMode: 'letters'
         };
 
         // Game state
@@ -25,6 +26,9 @@ class DualNBackGame {
             audio: []
         };
         this.letterSet = ['C', 'H', 'K', 'L', 'Q', 'R', 'S', 'T'];
+        this.noteSet = ['Do', 'Re', 'Mi', 'Fa', 'Sol', 'La', 'Ti', 'Do2'];
+        // Frequencies for musical notes (C4, D4, E4, F4, G4, A4, B4, C5)
+        this.noteFrequencies = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25];
         this.isPlaying = false;
         this.isPaused = false;
         this.trialTimer = null;
@@ -93,6 +97,7 @@ class DualNBackGame {
         document.getElementById('gridSize').value = this.settings.gridSize;
         document.getElementById('trialsPerSession').value = this.settings.trialsPerSession;
         document.getElementById('stimulusInterval').value = this.settings.stimulusInterval;
+        document.getElementById('audioMode').value = this.settings.audioMode;
         document.getElementById('audioVolume').value = this.settings.audioVolume * 100;
         document.getElementById('volumeValue').textContent = Math.round(this.settings.audioVolume * 100) + '%';
         document.getElementById('speechRate').value = this.settings.speechRate;
@@ -193,10 +198,37 @@ class DualNBackGame {
         this.showScreen('game');
         this.updateGameUI();
 
-        // Start playing
-        this.isPlaying = true;
-        this.isPaused = false;
-        this.playNextTrial();
+        // Show countdown before starting
+        this.showCountdown();
+    }
+
+    showCountdown() {
+        const overlay = document.getElementById('countdownOverlay');
+        const text = overlay.querySelector('.countdown-text');
+
+        text.textContent = 'Ready';
+        overlay.classList.add('show');
+
+        setTimeout(() => {
+            text.textContent = '3';
+        }, 500);
+
+        setTimeout(() => {
+            text.textContent = '2';
+        }, 1000);
+
+        setTimeout(() => {
+            text.textContent = '1';
+        }, 1500);
+
+        setTimeout(() => {
+            overlay.classList.remove('show');
+
+            // Start playing
+            this.isPlaying = true;
+            this.isPaused = false;
+            this.playNextTrial();
+        }, 2000);
     }
 
     generateSequences() {
@@ -204,10 +236,13 @@ class DualNBackGame {
         const totalCells = gridSize * gridSize;
         const totalTrials = this.settings.trialsPerSession;
 
+        // Choose audio set based on mode
+        const audioSet = this.settings.audioMode === 'notes' ? this.noteSet : this.letterSet;
+
         // Generate random sequences
         for (let i = 0; i < totalTrials; i++) {
             this.sequences.positions.push(Math.floor(Math.random() * totalCells));
-            this.sequences.letters.push(this.letterSet[Math.floor(Math.random() * this.letterSet.length)]);
+            this.sequences.letters.push(audioSet[Math.floor(Math.random() * audioSet.length)]);
         }
 
         // Initialize user responses
@@ -273,17 +308,56 @@ class DualNBackGame {
     }
 
     speakLetter(letter) {
-        if ('speechSynthesis' in window) {
-            // Cancel any pending speech to prevent queue buildup
-            window.speechSynthesis.cancel();
+        if (this.settings.audioMode === 'notes') {
+            this.playMusicalNote(letter);
+        } else {
+            if ('speechSynthesis' in window) {
+                // Cancel any pending speech to prevent queue buildup
+                window.speechSynthesis.cancel();
 
-            const utterance = new SpeechSynthesisUtterance(letter.toLowerCase());
-            utterance.rate = this.settings.speechRate;
-            utterance.volume = this.settings.audioVolume;
-            utterance.pitch = 1.0;
-            utterance.lang = 'en-US';
-            window.speechSynthesis.speak(utterance);
+                const utterance = new SpeechSynthesisUtterance(letter.toLowerCase());
+                utterance.rate = this.settings.speechRate;
+                utterance.volume = this.settings.audioVolume;
+                utterance.pitch = 1.0;
+                utterance.lang = 'en-US';
+                window.speechSynthesis.speak(utterance);
+            }
         }
+    }
+
+    playMusicalNote(note) {
+        // Get the frequency for this note
+        const noteIndex = this.noteSet.indexOf(note);
+        if (noteIndex === -1) return;
+
+        const frequency = this.noteFrequencies[noteIndex];
+
+        // Create audio context if it doesn't exist
+        if (!this.audioContext) {
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        // Create oscillator for the tone
+        const oscillator = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+
+        oscillator.frequency.value = frequency;
+        oscillator.type = 'sine';
+
+        // Set volume
+        gainNode.gain.value = this.settings.audioVolume;
+
+        // Play for 300ms with envelope
+        const now = this.audioContext.currentTime;
+        gainNode.gain.setValueAtTime(0, now);
+        gainNode.gain.linearRampToValueAtTime(this.settings.audioVolume, now + 0.01);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+
+        oscillator.start(now);
+        oscillator.stop(now + 0.3);
     }
 
     handleKeyPress(e) {
@@ -462,9 +536,32 @@ class DualNBackGame {
         const score = this.calculateFinalScore();
         const oldLevel = this.currentNLevel;
 
+        // Check for level increase - requires 2 consecutive high scores at current level
         if (score >= 90 && this.currentNLevel < 10) {
-            this.currentNLevel++;
-            this.currentSession.levelChange = 'increase';
+            // Check last session at this level
+            const recentSessions = this.stats.sessions.slice(-2);
+            let canPromote = false;
+
+            if (recentSessions.length >= 1) {
+                const lastSession = recentSessions[recentSessions.length - 1];
+                const lastScore = this.calculateSessionScore(lastSession);
+
+                // If last session was also at this level and scored >= 90%, promote
+                if (lastSession.nLevel === this.currentNLevel && lastScore >= 90) {
+                    canPromote = true;
+                }
+            } else {
+                // First session ever, need to prove consistency
+                canPromote = false;
+            }
+
+            if (canPromote) {
+                this.currentNLevel++;
+                this.currentSession.levelChange = 'increase';
+            } else {
+                this.currentSession.levelChange = 'same';
+                this.currentSession.promotionProgress = '1/2 high scores needed';
+            }
         } else if (score < 50 && this.currentNLevel > 1) {
             this.currentNLevel--;
             this.currentSession.levelChange = 'decrease';
@@ -478,6 +575,15 @@ class DualNBackGame {
         }
 
         this.currentSession.newLevel = this.currentNLevel;
+    }
+
+    calculateSessionScore(session) {
+        const correct = (session.positionHits || 0) +
+                       (session.audioHits || 0) +
+                       (session.positionCorrectRejections || 0) +
+                       (session.audioCorrectRejections || 0);
+        const possible = (session.trials - session.nLevel) * 2;
+        return possible > 0 ? Math.round((correct / possible) * 100) : 0;
     }
 
     calculateFinalScore() {
@@ -543,7 +649,11 @@ class DualNBackGame {
         } else if (this.currentSession.levelChange === 'decrease') {
             levelMsg.textContent = `Level decreased to ${this.currentSession.newLevel}-Back. Keep practicing!`;
         } else {
-            levelMsg.textContent = `Level remains at ${this.currentSession.newLevel}-Back`;
+            let message = `Level remains at ${this.currentSession.newLevel}-Back`;
+            if (this.currentSession.promotionProgress) {
+                message += ` (${this.currentSession.promotionProgress})`;
+            }
+            levelMsg.textContent = message;
         }
 
         // Initialize manual level selector
@@ -605,6 +715,38 @@ class DualNBackGame {
         });
         document.getElementById('totalTime').textContent = Math.round(totalMinutes) + 'm';
 
+        // Calculate position vs audio performance breakdown
+        let avgPositionAcc = 0;
+        let avgAudioAcc = 0;
+        if (stats.sessions.length > 0) {
+            const positionAccs = [];
+            const audioAccs = [];
+
+            stats.sessions.forEach(s => {
+                const posTotal = s.positionHits + s.positionMisses + (s.positionFalsePos || 0);
+                const audTotal = s.audioHits + s.audioMisses + (s.audioFalsePos || 0);
+
+                if (posTotal > 0) {
+                    positionAccs.push((s.positionHits / posTotal) * 100);
+                }
+                if (audTotal > 0) {
+                    audioAccs.push((s.audioHits / audTotal) * 100);
+                }
+            });
+
+            if (positionAccs.length > 0) {
+                avgPositionAcc = Math.round(positionAccs.reduce((a, b) => a + b, 0) / positionAccs.length);
+            }
+            if (audioAccs.length > 0) {
+                avgAudioAcc = Math.round(audioAccs.reduce((a, b) => a + b, 0) / audioAccs.length);
+            }
+        }
+
+        document.getElementById('avgPositionAcc').textContent = avgPositionAcc + '%';
+        document.getElementById('avgAudioAcc').textContent = avgAudioAcc + '%';
+        document.getElementById('positionBar').style.width = avgPositionAcc + '%';
+        document.getElementById('audioBar').style.width = avgAudioAcc + '%';
+
         // Session history
         const historyDiv = document.getElementById('sessionHistory');
         if (stats.sessions.length === 0) {
@@ -654,6 +796,7 @@ class DualNBackGame {
         this.settings.gridSize = parseInt(document.getElementById('gridSize').value);
         this.settings.trialsPerSession = parseInt(document.getElementById('trialsPerSession').value);
         this.settings.stimulusInterval = parseInt(document.getElementById('stimulusInterval').value);
+        this.settings.audioMode = document.getElementById('audioMode').value;
         this.settings.audioVolume = parseInt(document.getElementById('audioVolume').value) / 100;
         this.settings.speechRate = parseFloat(document.getElementById('speechRate').value);
 

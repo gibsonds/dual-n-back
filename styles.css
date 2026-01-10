@@ -376,6 +376,43 @@ h3 {
     justify-content: center;
 }
 
+/* Countdown Overlay */
+.countdown-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.9);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.countdown-overlay.show {
+    display: flex;
+}
+
+.countdown-text {
+    font-size: 4rem;
+    font-weight: 700;
+    color: white;
+    text-align: center;
+    animation: countdownPulse 1s ease-in-out infinite;
+}
+
+@keyframes countdownPulse {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.1);
+        opacity: 0.8;
+    }
+}
+
 /* Results Screen */
 .results-summary {
     display: grid;
@@ -544,6 +581,66 @@ h3 {
     font-size: 2rem;
     font-weight: 700;
     color: var(--primary-color);
+}
+
+.performance-breakdown {
+    background: var(--surface);
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    box-shadow: var(--shadow);
+    margin-bottom: 2rem;
+}
+
+.breakdown-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+.breakdown-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.breakdown-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 500;
+}
+
+.breakdown-value {
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.breakdown-bar {
+    height: 2rem;
+    background: var(--background);
+    border-radius: 0.5rem;
+    overflow: hidden;
+    position: relative;
+}
+
+.breakdown-fill {
+    height: 100%;
+    transition: width 0.5s ease;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 0.5rem;
+    color: white;
+    font-weight: 600;
+}
+
+.breakdown-fill.position {
+    background: linear-gradient(90deg, #8b5cf6, #a78bfa);
+}
+
+.breakdown-fill.audio {
+    background: linear-gradient(90deg, #3b82f6, #60a5fa);
 }
 
 .stats-history {
