@@ -12,7 +12,8 @@ class DualNBackGame {
             audioVolume: 0.8,
             speechRate: 1.0,
             audioMode: 'letters',
-            noteDuration: 600
+            noteDuration: 600,
+            scaleType: 'ionian'
         };
 
         // Game state
@@ -27,9 +28,38 @@ class DualNBackGame {
             audio: []
         };
         this.letterSet = ['C', 'H', 'K', 'L', 'Q', 'R', 'S', 'T'];
-        this.noteSet = ['Do', 'Re', 'Mi', 'Fa', 'Sol', 'La', 'Ti', 'Do2'];
-        // Frequencies for musical notes (C4, D4, E4, F4, G4, A4, B4, C5)
-        this.noteFrequencies = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25];
+
+        // Scale definitions with intervals in semitones
+        this.scales = {
+            ionian: {
+                name: 'Ionian (Major)',
+                intervals: [0, 2, 4, 5, 7, 9, 11, 12],
+                degrees: ['1', '2', '3', '4', '5', '6', '7', '8']
+            },
+            harmonicMinor: {
+                name: 'Harmonic Minor',
+                intervals: [0, 2, 3, 5, 7, 8, 11, 12],
+                degrees: ['1', '2', 'b3', '4', '5', 'b6', '7', '8']
+            },
+            melodicMinor: {
+                name: 'Melodic Minor',
+                intervals: [0, 2, 3, 5, 7, 9, 11, 12],
+                degrees: ['1', '2', 'b3', '4', '5', '6', '7', '8']
+            },
+            majorBlues: {
+                name: 'Major Blues',
+                intervals: [0, 2, 3, 4, 7, 9, 10, 12],
+                degrees: ['1', '2', 'b3', '3', '5', '6', 'b7', '8']
+            },
+            minorBlues: {
+                name: 'Minor Blues',
+                intervals: [0, 3, 5, 6, 7, 10, 12, 15],
+                degrees: ['1', 'b3', '4', 'b5', '5', 'b7', '8', 'b10']
+            }
+        };
+
+        this.baseFrequency = 261.63; // C4
+        this.updateScaleFrequencies();
         this.isPlaying = false;
         this.isPaused = false;
         this.trialTimer = null;
@@ -64,10 +94,24 @@ class DualNBackGame {
             this.settings = { ...this.settings, ...JSON.parse(saved) };
         }
         this.currentNLevel = this.settings.startingNLevel;
+        this.updateScaleFrequencies();
     }
 
     saveSettings() {
         localStorage.setItem('nback_settings', JSON.stringify(this.settings));
+    }
+
+    updateScaleFrequencies() {
+        const scale = this.scales[this.settings.scaleType];
+        if (!scale) return;
+
+        // Calculate frequencies based on scale intervals
+        this.noteFrequencies = scale.intervals.map(interval => {
+            return this.baseFrequency * Math.pow(2, interval / 12);
+        });
+
+        // Create note names based on scale degrees
+        this.noteSet = scale.degrees.map((degree, i) => `${degree}`);
     }
 
     loadStatistics() {
@@ -99,6 +143,7 @@ class DualNBackGame {
         document.getElementById('trialsPerSession').value = this.settings.trialsPerSession;
         document.getElementById('stimulusInterval').value = this.settings.stimulusInterval;
         document.getElementById('audioMode').value = this.settings.audioMode;
+        document.getElementById('scaleType').value = this.settings.scaleType;
         document.getElementById('noteDuration').value = this.settings.noteDuration;
         document.getElementById('audioVolume').value = this.settings.audioVolume * 100;
         document.getElementById('volumeValue').textContent = Math.round(this.settings.audioVolume * 100) + '%';
@@ -211,6 +256,11 @@ class DualNBackGame {
         text.textContent = 'Ready';
         overlay.classList.add('show');
 
+        // Play root note if in notes mode
+        if (this.settings.audioMode === 'notes') {
+            this.playRootNote();
+        }
+
         setTimeout(() => {
             text.textContent = '3';
         }, 500);
@@ -231,6 +281,31 @@ class DualNBackGame {
             this.isPaused = false;
             this.playNextTrial();
         }, 2000);
+    }
+
+    playRootNote() {
+        // Play the root note (first note in the scale)
+        if (!this.audioContext) {
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        const oscillator = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+
+        oscillator.frequency.value = this.noteFrequencies[0];
+        oscillator.type = 'sine';
+
+        // Play for 1 second with envelope
+        const now = this.audioContext.currentTime;
+        gainNode.gain.setValueAtTime(0, now);
+        gainNode.gain.linearRampToValueAtTime(this.settings.audioVolume, now + 0.02);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 1.0);
+
+        oscillator.start(now);
+        oscillator.stop(now + 1.0);
     }
 
     generateSequences() {
@@ -800,10 +875,12 @@ class DualNBackGame {
         this.settings.trialsPerSession = parseInt(document.getElementById('trialsPerSession').value);
         this.settings.stimulusInterval = parseInt(document.getElementById('stimulusInterval').value);
         this.settings.audioMode = document.getElementById('audioMode').value;
+        this.settings.scaleType = document.getElementById('scaleType').value;
         this.settings.noteDuration = parseInt(document.getElementById('noteDuration').value);
         this.settings.audioVolume = parseInt(document.getElementById('audioVolume').value) / 100;
         this.settings.speechRate = parseFloat(document.getElementById('speechRate').value);
 
+        this.updateScaleFrequencies();
         this.saveSettings();
     }
 }
