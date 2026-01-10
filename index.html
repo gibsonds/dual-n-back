@@ -284,6 +284,14 @@
                     </select>
                 </div>
                 <div class="setting-item">
+                    <label for="noteDuration">Note Duration (for Musical Notes mode)</label>
+                    <select id="noteDuration">
+                        <option value="300">Short (300ms)</option>
+                        <option value="600" selected>Medium (600ms)</option>
+                        <option value="900">Long (900ms)</option>
+                    </select>
+                </div>
+                <div class="setting-item">
                     <label for="audioVolume">Volume</label>
                     <input type="range" id="audioVolume" min="0" max="100" value="80">
                     <span id="volumeValue">80%</span>

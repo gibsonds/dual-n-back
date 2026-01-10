@@ -11,7 +11,8 @@ class DualNBackGame {
             stimulusInterval: 3000,
             audioVolume: 0.8,
             speechRate: 1.0,
-            audioMode: 'letters'
+            audioMode: 'letters',
+            noteDuration: 600
         };
 
         // Game state
@@ -98,6 +99,7 @@ class DualNBackGame {
         document.getElementById('trialsPerSession').value = this.settings.trialsPerSession;
         document.getElementById('stimulusInterval').value = this.settings.stimulusInterval;
         document.getElementById('audioMode').value = this.settings.audioMode;
+        document.getElementById('noteDuration').value = this.settings.noteDuration;
         document.getElementById('audioVolume').value = this.settings.audioVolume * 100;
         document.getElementById('volumeValue').textContent = Math.round(this.settings.audioVolume * 100) + '%';
         document.getElementById('speechRate').value = this.settings.speechRate;
@@ -350,14 +352,15 @@ class DualNBackGame {
         // Set volume
         gainNode.gain.value = this.settings.audioVolume;
 
-        // Play for 300ms with envelope
+        // Play note with envelope (duration in milliseconds converted to seconds)
+        const duration = this.settings.noteDuration / 1000;
         const now = this.audioContext.currentTime;
         gainNode.gain.setValueAtTime(0, now);
         gainNode.gain.linearRampToValueAtTime(this.settings.audioVolume, now + 0.01);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + duration);
 
         oscillator.start(now);
-        oscillator.stop(now + 0.3);
+        oscillator.stop(now + duration);
     }
 
     handleKeyPress(e) {
@@ -797,6 +800,7 @@ class DualNBackGame {
         this.settings.trialsPerSession = parseInt(document.getElementById('trialsPerSession').value);
         this.settings.stimulusInterval = parseInt(document.getElementById('stimulusInterval').value);
         this.settings.audioMode = document.getElementById('audioMode').value;
+        this.settings.noteDuration = parseInt(document.getElementById('noteDuration').value);
         this.settings.audioVolume = parseInt(document.getElementById('audioVolume').value) / 100;
         this.settings.speechRate = parseFloat(document.getElementById('speechRate').value);
 
