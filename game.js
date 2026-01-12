@@ -13,7 +13,8 @@ class DualNBackGame {
             speechRate: 1.0,
             audioMode: 'letters',
             noteDuration: 600,
-            scaleType: 'ionian'
+            scaleType: 'ionian',
+            gameMode: 'dual'
         };
 
         // Game state
@@ -21,13 +22,23 @@ class DualNBackGame {
         this.currentTrial = 0;
         this.sequences = {
             positions: [],
-            letters: []
+            letters: [],
+            colors: []
         };
         this.userResponses = {
             position: [],
-            audio: []
+            audio: [],
+            color: []
         };
         this.letterSet = ['C', 'H', 'K', 'L', 'Q', 'R', 'S', 'T'];
+        this.colorSet = [
+            { name: 'red', hex: '#e74c3c' },
+            { name: 'blue', hex: '#3498db' },
+            { name: 'green', hex: '#2ecc71' },
+            { name: 'yellow', hex: '#f1c40f' },
+            { name: 'purple', hex: '#9b59b6' },
+            { name: 'orange', hex: '#e67e22' }
+        ];
 
         // Scale definitions with intervals in semitones
         this.scales = {
@@ -148,6 +159,7 @@ class DualNBackGame {
         document.getElementById('audioVolume').value = this.settings.audioVolume * 100;
         document.getElementById('volumeValue').textContent = Math.round(this.settings.audioVolume * 100) + '%';
         document.getElementById('speechRate').value = this.settings.speechRate;
+        document.getElementById('gameMode').value = this.settings.gameMode;
     }
 
     attachEventListeners() {
@@ -160,8 +172,10 @@ class DualNBackGame {
         // Game screen
         document.getElementById('pauseButton').addEventListener('click', () => this.togglePause());
         document.getElementById('restartButton').addEventListener('click', () => this.restartGame());
+        document.getElementById('quitButton').addEventListener('click', () => this.quitToMenu());
         document.getElementById('audioMatchBtn').addEventListener('click', () => this.handleInput('audio'));
         document.getElementById('positionMatchBtn').addEventListener('click', () => this.handleInput('position'));
+        document.getElementById('colorMatchBtn').addEventListener('click', () => this.handleInput('color'));
 
         // Results screen
         document.getElementById('continueButton').addEventListener('click', () => this.startGame());
@@ -216,6 +230,9 @@ class DualNBackGame {
             await this.ensureAudioContext();
         }
 
+        // Check if we're in triple mode
+        const isTripleMode = this.settings.gameMode === 'triple';
+
         // Reset session
         this.currentSession = {
             nLevel: this.currentNLevel,
@@ -226,6 +243,9 @@ class DualNBackGame {
             audioHits: 0,
             audioMisses: 0,
             audioFalsePos: 0,
+            colorHits: 0,
+            colorMisses: 0,
+            colorFalsePos: 0,
             startTime: Date.now(),
             endTime: null
         };
@@ -233,12 +253,25 @@ class DualNBackGame {
         this.currentTrial = 0;
         this.sequences = {
             positions: [],
-            letters: []
+            letters: [],
+            colors: []
         };
         this.userResponses = {
             position: [],
-            audio: []
+            audio: [],
+            color: []
         };
+
+        // Show/hide color controls based on game mode
+        const colorControlHint = document.getElementById('colorControlHint');
+        const colorMatchBtn = document.getElementById('colorMatchBtn');
+        if (isTripleMode) {
+            colorControlHint.style.display = '';
+            colorMatchBtn.style.display = '';
+        } else {
+            colorControlHint.style.display = 'none';
+            colorMatchBtn.style.display = 'none';
+        }
 
         // Update grid size
         this.updateGridSize();
@@ -319,6 +352,7 @@ class DualNBackGame {
         const gridSize = this.settings.gridSize;
         const totalCells = gridSize * gridSize;
         const totalTrials = this.settings.trialsPerSession;
+        const isTripleMode = this.settings.gameMode === 'triple';
 
         // Choose audio set based on mode
         const audioSet = this.settings.audioMode === 'notes' ? this.noteSet : this.letterSet;
@@ -327,11 +361,20 @@ class DualNBackGame {
         for (let i = 0; i < totalTrials; i++) {
             this.sequences.positions.push(Math.floor(Math.random() * totalCells));
             this.sequences.letters.push(audioSet[Math.floor(Math.random() * audioSet.length)]);
+
+            // Add color sequence for triple mode
+            if (isTripleMode) {
+                this.sequences.colors.push(Math.floor(Math.random() * this.colorSet.length));
+            }
         }
 
         // Initialize user responses
         this.userResponses.position = new Array(totalTrials).fill(false);
         this.userResponses.audio = new Array(totalTrials).fill(false);
+
+        if (isTripleMode) {
+            this.userResponses.color = new Array(totalTrials).fill(false);
+        }
     }
 
     updateGridSize() {
@@ -382,12 +425,31 @@ class DualNBackGame {
 
     highlightPosition(position) {
         const cells = document.querySelectorAll('.grid-cell');
-        cells.forEach(cell => cell.classList.remove('active'));
+        const isTripleMode = this.settings.gameMode === 'triple';
+
+        // Clear previous highlights and colors
+        cells.forEach(cell => {
+            cell.classList.remove('active');
+            if (isTripleMode) {
+                cell.style.backgroundColor = '';
+            }
+        });
+
         cells[position].classList.add('active');
+
+        // Add color in triple mode
+        if (isTripleMode) {
+            const colorIndex = this.sequences.colors[this.currentTrial];
+            const color = this.colorSet[colorIndex];
+            cells[position].style.backgroundColor = color.hex;
+        }
 
         // Remove highlight after a delay
         setTimeout(() => {
             cells[position].classList.remove('active');
+            if (isTripleMode) {
+                cells[position].style.backgroundColor = '';
+            }
         }, this.settings.stimulusInterval * 0.4);
     }
 
@@ -488,6 +550,8 @@ class DualNBackGame {
             this.handleInput('audio');
         } else if (key === 'l') {
             this.handleInput('position');
+        } else if (key === 'c' && this.settings.gameMode === 'triple') {
+            this.handleInput('color');
         }
     }
 
@@ -511,6 +575,9 @@ class DualNBackGame {
         } else if (type === 'position') {
             isMatch = this.sequences.positions[trialIndex] === this.sequences.positions[trialIndex - this.currentNLevel];
             this.userResponses.position[trialIndex] = true;
+        } else if (type === 'color') {
+            isMatch = this.sequences.colors[trialIndex] === this.sequences.colors[trialIndex - this.currentNLevel];
+            this.userResponses.color[trialIndex] = true;
         }
 
         // Show visual feedback
@@ -521,7 +588,10 @@ class DualNBackGame {
         const feedbackDiv = document.getElementById('inputFeedback');
         if (!feedbackDiv) return;
 
-        const label = type === 'audio' ? 'A' : 'L';
+        let label = 'A';
+        if (type === 'position') label = 'L';
+        else if (type === 'color') label = 'C';
+
         feedbackDiv.textContent = label;
 
         // Remove previous classes
@@ -549,6 +619,7 @@ class DualNBackGame {
     calculateCurrentScore() {
         if (this.currentTrial <= this.currentNLevel) return 0;
 
+        const isTripleMode = this.settings.gameMode === 'triple';
         let correct = 0;
         let total = 0;
 
@@ -564,6 +635,14 @@ class DualNBackGame {
             const audResponse = this.userResponses.audio[i];
             if (audMatch === audResponse) correct++;
             total++;
+
+            // Check color match in triple mode
+            if (isTripleMode) {
+                const colorMatch = this.sequences.colors[i] === this.sequences.colors[i - this.currentNLevel];
+                const colorResponse = this.userResponses.color[i];
+                if (colorMatch === colorResponse) correct++;
+                total++;
+            }
         }
 
         return total > 0 ? Math.round((correct / total) * 100) : 0;
@@ -599,6 +678,24 @@ class DualNBackGame {
         this.startGame();
     }
 
+    quitToMenu() {
+        if (!confirm('Quit to main menu? Progress will not be saved.')) {
+            return;
+        }
+
+        // Stop current game
+        this.isPlaying = false;
+        this.isPaused = false;
+        clearTimeout(this.trialTimer);
+        window.speechSynthesis.cancel();
+
+        // Reset pause button
+        document.getElementById('pauseButton').textContent = 'Pause';
+
+        // Return to start screen
+        this.showScreen('start');
+    }
+
     endGame() {
         this.isPlaying = false;
         this.currentSession.endTime = Date.now();
@@ -617,8 +714,10 @@ class DualNBackGame {
     }
 
     calculateSessionStats() {
+        const isTripleMode = this.settings.gameMode === 'triple';
         this.currentSession.positionCorrectRejections = 0;
         this.currentSession.audioCorrectRejections = 0;
+        this.currentSession.colorCorrectRejections = 0;
 
         for (let i = this.currentNLevel; i < this.settings.trialsPerSession; i++) {
             // Position scoring
@@ -647,6 +746,22 @@ class DualNBackGame {
                 this.currentSession.audioFalsePos++;
             } else if (!audMatch && !audResponse) {
                 this.currentSession.audioCorrectRejections++;
+            }
+
+            // Color scoring in triple mode
+            if (isTripleMode) {
+                const colorMatch = this.sequences.colors[i] === this.sequences.colors[i - this.currentNLevel];
+                const colorResponse = this.userResponses.color[i];
+
+                if (colorMatch && colorResponse) {
+                    this.currentSession.colorHits++;
+                } else if (colorMatch && !colorResponse) {
+                    this.currentSession.colorMisses++;
+                } else if (!colorMatch && colorResponse) {
+                    this.currentSession.colorFalsePos++;
+                } else if (!colorMatch && !colorResponse) {
+                    this.currentSession.colorCorrectRejections++;
+                }
             }
         }
     }
@@ -697,23 +812,31 @@ class DualNBackGame {
     }
 
     calculateSessionScore(session) {
+        const isTripleMode = session.colorHits !== undefined;
+        const multiplier = isTripleMode ? 3 : 2;
         const correct = (session.positionHits || 0) +
                        (session.audioHits || 0) +
+                       (session.colorHits || 0) +
                        (session.positionCorrectRejections || 0) +
-                       (session.audioCorrectRejections || 0);
-        const possible = (session.trials - session.nLevel) * 2;
+                       (session.audioCorrectRejections || 0) +
+                       (session.colorCorrectRejections || 0);
+        const possible = (session.trials - session.nLevel) * multiplier;
         return possible > 0 ? Math.round((correct / possible) * 100) : 0;
     }
 
     calculateFinalScore() {
-        const possible = (this.settings.trialsPerSession - this.currentNLevel) * 2;
+        const isTripleMode = this.settings.gameMode === 'triple';
+        const multiplier = isTripleMode ? 3 : 2;
+        const possible = (this.settings.trialsPerSession - this.currentNLevel) * multiplier;
         if (possible === 0) return 0;
 
         // Count all correct responses: hits AND correct rejections
         const correct = this.currentSession.positionHits +
                        this.currentSession.audioHits +
+                       (this.currentSession.colorHits || 0) +
                        (this.currentSession.positionCorrectRejections || 0) +
-                       (this.currentSession.audioCorrectRejections || 0);
+                       (this.currentSession.audioCorrectRejections || 0) +
+                       (this.currentSession.colorCorrectRejections || 0);
 
         return Math.round((correct / possible) * 100);
     }
@@ -734,6 +857,8 @@ class DualNBackGame {
     }
 
     showResults() {
+        const isTripleMode = this.settings.gameMode === 'triple';
+
         // Calculate accuracies
         const posAcc = this.calculateAccuracy(
             this.currentSession.positionHits,
@@ -758,6 +883,38 @@ class DualNBackGame {
         document.getElementById('audioMisses').textContent = this.currentSession.audioMisses;
         document.getElementById('positionFalsePos').textContent = this.currentSession.positionFalsePos;
         document.getElementById('audioFalsePos').textContent = this.currentSession.audioFalsePos;
+
+        // Show/hide color column based on mode
+        const colorHeader = document.getElementById('colorColumnHeader');
+        const colorAccuracyCell = document.getElementById('colorAccuracy');
+        const colorHitsCell = document.getElementById('colorHits');
+        const colorMissesCell = document.getElementById('colorMisses');
+        const colorFalsePosCell = document.getElementById('colorFalsePos');
+
+        if (isTripleMode) {
+            const colorAcc = this.calculateAccuracy(
+                this.currentSession.colorHits,
+                this.currentSession.colorMisses,
+                this.currentSession.colorFalsePos
+            );
+
+            colorHeader.style.display = '';
+            colorAccuracyCell.style.display = '';
+            colorHitsCell.style.display = '';
+            colorMissesCell.style.display = '';
+            colorFalsePosCell.style.display = '';
+
+            colorAccuracyCell.textContent = colorAcc + '%';
+            colorHitsCell.textContent = this.currentSession.colorHits;
+            colorMissesCell.textContent = this.currentSession.colorMisses;
+            colorFalsePosCell.textContent = this.currentSession.colorFalsePos;
+        } else {
+            colorHeader.style.display = 'none';
+            colorAccuracyCell.style.display = 'none';
+            colorHitsCell.style.display = 'none';
+            colorMissesCell.style.display = 'none';
+            colorFalsePosCell.style.display = 'none';
+        }
 
         // Show level change message
         const levelMsg = document.getElementById('levelChangeMessage');
@@ -922,6 +1079,7 @@ class DualNBackGame {
         this.settings.noteDuration = parseInt(document.getElementById('noteDuration').value);
         this.settings.audioVolume = parseInt(document.getElementById('audioVolume').value) / 100;
         this.settings.speechRate = parseFloat(document.getElementById('speechRate').value);
+        this.settings.gameMode = document.getElementById('gameMode').value;
 
         // If switching audio modes, clean up
         if (oldAudioMode !== this.settings.audioMode) {
