@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Dual N-Back - Brain Training</title>
-    <link rel="stylesheet" href="styles.css?v=1.4.0">
+    <link rel="stylesheet" href="styles.css?v=1.5.0">
 </head>
 <body>
-    <div class="version-number">v1.4.0</div>
+    <div class="version-number">v1.5.0</div>
 
     <!-- Start Screen -->
     <div id="startScreen" class="screen active">
@@ -317,6 +317,20 @@
                     </select>
                 </div>
                 <div class="setting-item">
+                    <label for="instrument">Instrument (for Musical Notes mode)</label>
+                    <select id="instrument">
+                        <option value="acoustic_grand_piano">Piano</option>
+                        <option value="cello" selected>Cello</option>
+                        <option value="acoustic_guitar_nylon">Nylon Guitar</option>
+                        <option value="acoustic_guitar_steel">Steel Guitar</option>
+                        <option value="violin">Violin</option>
+                        <option value="flute">Flute</option>
+                        <option value="clarinet">Clarinet</option>
+                        <option value="trumpet">Trumpet</option>
+                        <option value="vibraphone">Vibraphone</option>
+                    </select>
+                </div>
+                <div class="setting-item">
                     <label for="noteDuration">Note Duration (for Musical Notes mode)</label>
                     <select id="noteDuration">
                         <option value="300">Short (300ms)</option>
@@ -418,6 +432,7 @@
         </div>
     </div>
 
-    <script src="game.js?v=1.4.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/soundfont-player@0.12.0/dist/soundfont-player.min.js"></script>
+    <script src="game.js?v=1.5.0"></script>
 </body>
 </html>

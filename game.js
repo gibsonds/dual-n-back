@@ -14,7 +14,8 @@ class DualNBackGame {
             audioMode: 'letters',
             noteDuration: 600,
             scaleType: 'ionian',
-            gameMode: 'dual'
+            gameMode: 'dual',
+            instrument: 'cello'
         };
 
         // Game state
@@ -74,6 +75,7 @@ class DualNBackGame {
         this.isPlaying = false;
         this.isPaused = false;
         this.trialTimer = null;
+        this.soundfontInstrument = null;
 
         // Statistics
         this.currentSession = {
@@ -160,6 +162,7 @@ class DualNBackGame {
         document.getElementById('volumeValue').textContent = Math.round(this.settings.audioVolume * 100) + '%';
         document.getElementById('speechRate').value = this.settings.speechRate;
         document.getElementById('gameMode').value = this.settings.gameMode;
+        document.getElementById('instrument').value = this.settings.instrument;
     }
 
     attachEventListeners() {
@@ -228,6 +231,10 @@ class DualNBackGame {
         // Ensure audio context is ready (user interaction requirement)
         if (this.settings.audioMode === 'notes') {
             await this.ensureAudioContext();
+            // Load instrument if not already loaded or if instrument changed
+            if (!this.soundfontInstrument || this.soundfontInstrument.name !== this.settings.instrument) {
+                await this.loadInstrument();
+            }
         }
 
         // Check if we're in triple mode
@@ -323,26 +330,36 @@ class DualNBackGame {
 
     async playRootNote() {
         try {
-            // Ensure audio context is ready
-            await this.ensureAudioContext();
+            // Use soundfont if available, otherwise fall back to oscillator
+            if (this.soundfontInstrument) {
+                // Play C4 (root note)
+                this.soundfontInstrument.play('C4', this.audioContext.currentTime, {
+                    duration: 1.0,
+                    gain: this.settings.audioVolume
+                });
+            } else {
+                // Fallback to oscillator
+                // Ensure audio context is ready
+                await this.ensureAudioContext();
 
-            const oscillator = this.audioContext.createOscillator();
-            const gainNode = this.audioContext.createGain();
+                const oscillator = this.audioContext.createOscillator();
+                const gainNode = this.audioContext.createGain();
 
-            oscillator.connect(gainNode);
-            gainNode.connect(this.audioContext.destination);
+                oscillator.connect(gainNode);
+                gainNode.connect(this.audioContext.destination);
 
-            oscillator.frequency.value = this.noteFrequencies[0];
-            oscillator.type = 'sine';
+                oscillator.frequency.value = this.noteFrequencies[0];
+                oscillator.type = 'sine';
 
-            // Play for 1 second with envelope
-            const now = this.audioContext.currentTime;
-            gainNode.gain.setValueAtTime(0, now);
-            gainNode.gain.linearRampToValueAtTime(this.settings.audioVolume, now + 0.02);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, now + 1.0);
+                // Play for 1 second with envelope
+                const now = this.audioContext.currentTime;
+                gainNode.gain.setValueAtTime(0, now);
+                gainNode.gain.linearRampToValueAtTime(this.settings.audioVolume, now + 0.02);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 1.0);
 
-            oscillator.start(now);
-            oscillator.stop(now + 1.0);
+                oscillator.start(now);
+                oscillator.stop(now + 1.0);
+            }
         } catch (e) {
             console.error('Error in playRootNote:', e);
         }
@@ -469,6 +486,29 @@ class DualNBackGame {
         }
     }
 
+    async loadInstrument() {
+        try {
+            // Ensure audio context is ready
+            await this.ensureAudioContext();
+
+            // Load the soundfont instrument
+            if (window.Soundfont) {
+                this.soundfontInstrument = await Soundfont.instrument(
+                    this.audioContext,
+                    this.settings.instrument,
+                    {
+                        gain: this.settings.audioVolume
+                    }
+                );
+                console.log('Instrument loaded:', this.settings.instrument);
+            } else {
+                console.error('Soundfont library not available');
+            }
+        } catch (e) {
+            console.error('Error loading instrument:', e);
+        }
+    }
+
     speakLetter(letter) {
         if (this.settings.audioMode === 'notes') {
             this.playMusicalNote(letter);
@@ -505,37 +545,59 @@ class DualNBackGame {
                 return;
             }
 
-            const frequency = this.noteFrequencies[noteIndex];
-            if (!frequency) {
-                console.error('Frequency not found for note:', note);
-                return;
+            // Use soundfont if available, otherwise fall back to oscillator
+            if (this.soundfontInstrument) {
+                // Convert note index to MIDI note name
+                // Base note is C4 (MIDI 60), then add semitones based on scale intervals
+                const scale = this.scales[this.settings.scaleType];
+                const semitones = scale.intervals[noteIndex];
+                const midiNumber = 60 + semitones; // C4 is MIDI 60
+
+                // Convert MIDI number to note name
+                const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+                const octave = Math.floor(midiNumber / 12) - 1;
+                const noteName = noteNames[midiNumber % 12] + octave;
+
+                // Play the note using soundfont
+                const duration = this.settings.noteDuration / 1000;
+                this.soundfontInstrument.play(noteName, this.audioContext.currentTime, {
+                    duration: duration,
+                    gain: this.settings.audioVolume
+                });
+            } else {
+                // Fallback to oscillator
+                const frequency = this.noteFrequencies[noteIndex];
+                if (!frequency) {
+                    console.error('Frequency not found for note:', note);
+                    return;
+                }
+
+                // Ensure audio context is ready
+                await this.ensureAudioContext();
+
+                // Create oscillator for the tone
+                const oscillator = this.audioContext.createOscillator();
+                const gainNode = this.audioContext.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(this.audioContext.destination);
+
+                oscillator.frequency.value = frequency;
+                oscillator.type = 'sine';
+
+                // Set volume
+                gainNode.gain.value = this.settings.audioVolume;
+
+                // Play note with envelope (duration in milliseconds converted to seconds)
+                const duration = this.settings.noteDuration / 1000;
+                const now = this.audioContext.currentTime;
+                gainNode.gain.setValueAtTime(0, now);
+                gainNode.gain.linearRampToValueAtTime(this.settings.audioVolume, now + 0.01);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + duration);
+
+                oscillator.start(now);
+                oscillator.stop(now + duration);
             }
-
-            // Ensure audio context is ready
-            await this.ensureAudioContext();
-
-            // Create oscillator for the tone
-            const oscillator = this.audioContext.createOscillator();
-            const gainNode = this.audioContext.createGain();
-
-            oscillator.connect(gainNode);
-            gainNode.connect(this.audioContext.destination);
-
-            oscillator.frequency.value = frequency;
-            oscillator.type = 'sine';
-
-            // Set volume
-            gainNode.gain.value = this.settings.audioVolume;
-
-            // Play note with envelope (duration in milliseconds converted to seconds)
-            const duration = this.settings.noteDuration / 1000;
-            const now = this.audioContext.currentTime;
-            gainNode.gain.setValueAtTime(0, now);
-            gainNode.gain.linearRampToValueAtTime(this.settings.audioVolume, now + 0.01);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, now + duration);
-
-            oscillator.start(now);
-            oscillator.stop(now + duration);
         } catch (e) {
             console.error('Error in playMusicalNote:', e);
         }
@@ -1067,8 +1129,9 @@ class DualNBackGame {
 
     // ===== SETTINGS =====
 
-    applySettings() {
+    async applySettings() {
         const oldAudioMode = this.settings.audioMode;
+        const oldInstrument = this.settings.instrument;
 
         this.settings.startingNLevel = parseInt(document.getElementById('startingNLevel').value);
         this.settings.gridSize = parseInt(document.getElementById('gridSize').value);
@@ -1080,6 +1143,7 @@ class DualNBackGame {
         this.settings.audioVolume = parseInt(document.getElementById('audioVolume').value) / 100;
         this.settings.speechRate = parseFloat(document.getElementById('speechRate').value);
         this.settings.gameMode = document.getElementById('gameMode').value;
+        this.settings.instrument = document.getElementById('instrument').value;
 
         // If switching audio modes, clean up
         if (oldAudioMode !== this.settings.audioMode) {
@@ -1088,8 +1152,13 @@ class DualNBackGame {
             }
             if (this.settings.audioMode === 'notes') {
                 // Ensure audio context is created and ready
-                this.ensureAudioContext();
+                await this.ensureAudioContext();
+                // Load the instrument
+                await this.loadInstrument();
             }
+        } else if (this.settings.audioMode === 'notes' && oldInstrument !== this.settings.instrument) {
+            // Instrument changed, reload
+            await this.loadInstrument();
         }
 
         this.updateScaleFrequencies();
