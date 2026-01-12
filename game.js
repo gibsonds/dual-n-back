@@ -210,7 +210,12 @@ class DualNBackGame {
 
     // ===== GAME LOGIC =====
 
-    startGame() {
+    async startGame() {
+        // Ensure audio context is ready (user interaction requirement)
+        if (this.settings.audioMode === 'notes') {
+            await this.ensureAudioContext();
+        }
+
         // Reset session
         this.currentSession = {
             nLevel: this.currentNLevel,
@@ -283,29 +288,31 @@ class DualNBackGame {
         }, 2000);
     }
 
-    playRootNote() {
-        // Play the root note (first note in the scale)
-        if (!this.audioContext) {
-            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    async playRootNote() {
+        try {
+            // Ensure audio context is ready
+            await this.ensureAudioContext();
+
+            const oscillator = this.audioContext.createOscillator();
+            const gainNode = this.audioContext.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(this.audioContext.destination);
+
+            oscillator.frequency.value = this.noteFrequencies[0];
+            oscillator.type = 'sine';
+
+            // Play for 1 second with envelope
+            const now = this.audioContext.currentTime;
+            gainNode.gain.setValueAtTime(0, now);
+            gainNode.gain.linearRampToValueAtTime(this.settings.audioVolume, now + 0.02);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, now + 1.0);
+
+            oscillator.start(now);
+            oscillator.stop(now + 1.0);
+        } catch (e) {
+            console.error('Error in playRootNote:', e);
         }
-
-        const oscillator = this.audioContext.createOscillator();
-        const gainNode = this.audioContext.createGain();
-
-        oscillator.connect(gainNode);
-        gainNode.connect(this.audioContext.destination);
-
-        oscillator.frequency.value = this.noteFrequencies[0];
-        oscillator.type = 'sine';
-
-        // Play for 1 second with envelope
-        const now = this.audioContext.currentTime;
-        gainNode.gain.setValueAtTime(0, now);
-        gainNode.gain.linearRampToValueAtTime(this.settings.audioVolume, now + 0.02);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 1.0);
-
-        oscillator.start(now);
-        oscillator.stop(now + 1.0);
     }
 
     generateSequences() {
@@ -384,58 +391,92 @@ class DualNBackGame {
         }, this.settings.stimulusInterval * 0.4);
     }
 
-    speakLetter(letter) {
-        if (this.settings.audioMode === 'notes') {
-            this.playMusicalNote(letter);
-        } else {
-            if ('speechSynthesis' in window) {
-                // Cancel any pending speech to prevent queue buildup
-                window.speechSynthesis.cancel();
-
-                const utterance = new SpeechSynthesisUtterance(letter.toLowerCase());
-                utterance.rate = this.settings.speechRate;
-                utterance.volume = this.settings.audioVolume;
-                utterance.pitch = 1.0;
-                utterance.lang = 'en-US';
-                window.speechSynthesis.speak(utterance);
-            }
-        }
-    }
-
-    playMusicalNote(note) {
-        // Get the frequency for this note
-        const noteIndex = this.noteSet.indexOf(note);
-        if (noteIndex === -1) return;
-
-        const frequency = this.noteFrequencies[noteIndex];
-
+    async ensureAudioContext() {
         // Create audio context if it doesn't exist
         if (!this.audioContext) {
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
         }
 
-        // Create oscillator for the tone
-        const oscillator = this.audioContext.createOscillator();
-        const gainNode = this.audioContext.createGain();
+        // Resume if suspended
+        if (this.audioContext.state === 'suspended') {
+            try {
+                await this.audioContext.resume();
+            } catch (e) {
+                console.error('Failed to resume audio context:', e);
+            }
+        }
+    }
 
-        oscillator.connect(gainNode);
-        gainNode.connect(this.audioContext.destination);
+    speakLetter(letter) {
+        if (this.settings.audioMode === 'notes') {
+            this.playMusicalNote(letter);
+        } else {
+            try {
+                if ('speechSynthesis' in window) {
+                    // Cancel any pending speech to prevent queue buildup
+                    window.speechSynthesis.cancel();
 
-        oscillator.frequency.value = frequency;
-        oscillator.type = 'sine';
+                    const utterance = new SpeechSynthesisUtterance(letter.toLowerCase());
+                    utterance.rate = this.settings.speechRate;
+                    utterance.volume = this.settings.audioVolume;
+                    utterance.pitch = 1.0;
+                    utterance.lang = 'en-US';
 
-        // Set volume
-        gainNode.gain.value = this.settings.audioVolume;
+                    utterance.onerror = (e) => {
+                        console.error('Speech synthesis error:', e);
+                    };
 
-        // Play note with envelope (duration in milliseconds converted to seconds)
-        const duration = this.settings.noteDuration / 1000;
-        const now = this.audioContext.currentTime;
-        gainNode.gain.setValueAtTime(0, now);
-        gainNode.gain.linearRampToValueAtTime(this.settings.audioVolume, now + 0.01);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, now + duration);
+                    window.speechSynthesis.speak(utterance);
+                }
+            } catch (e) {
+                console.error('Error in speakLetter:', e);
+            }
+        }
+    }
 
-        oscillator.start(now);
-        oscillator.stop(now + duration);
+    async playMusicalNote(note) {
+        try {
+            // Get the frequency for this note
+            const noteIndex = this.noteSet.indexOf(note);
+            if (noteIndex === -1) {
+                console.error('Note not found:', note);
+                return;
+            }
+
+            const frequency = this.noteFrequencies[noteIndex];
+            if (!frequency) {
+                console.error('Frequency not found for note:', note);
+                return;
+            }
+
+            // Ensure audio context is ready
+            await this.ensureAudioContext();
+
+            // Create oscillator for the tone
+            const oscillator = this.audioContext.createOscillator();
+            const gainNode = this.audioContext.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(this.audioContext.destination);
+
+            oscillator.frequency.value = frequency;
+            oscillator.type = 'sine';
+
+            // Set volume
+            gainNode.gain.value = this.settings.audioVolume;
+
+            // Play note with envelope (duration in milliseconds converted to seconds)
+            const duration = this.settings.noteDuration / 1000;
+            const now = this.audioContext.currentTime;
+            gainNode.gain.setValueAtTime(0, now);
+            gainNode.gain.linearRampToValueAtTime(this.settings.audioVolume, now + 0.01);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, now + duration);
+
+            oscillator.start(now);
+            oscillator.stop(now + duration);
+        } catch (e) {
+            console.error('Error in playMusicalNote:', e);
+        }
     }
 
     handleKeyPress(e) {
@@ -870,6 +911,8 @@ class DualNBackGame {
     // ===== SETTINGS =====
 
     applySettings() {
+        const oldAudioMode = this.settings.audioMode;
+
         this.settings.startingNLevel = parseInt(document.getElementById('startingNLevel').value);
         this.settings.gridSize = parseInt(document.getElementById('gridSize').value);
         this.settings.trialsPerSession = parseInt(document.getElementById('trialsPerSession').value);
@@ -879,6 +922,17 @@ class DualNBackGame {
         this.settings.noteDuration = parseInt(document.getElementById('noteDuration').value);
         this.settings.audioVolume = parseInt(document.getElementById('audioVolume').value) / 100;
         this.settings.speechRate = parseFloat(document.getElementById('speechRate').value);
+
+        // If switching audio modes, clean up
+        if (oldAudioMode !== this.settings.audioMode) {
+            if (oldAudioMode === 'letters' && 'speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
+            if (this.settings.audioMode === 'notes') {
+                // Ensure audio context is created and ready
+                this.ensureAudioContext();
+            }
+        }
 
         this.updateScaleFrequencies();
         this.saveSettings();
